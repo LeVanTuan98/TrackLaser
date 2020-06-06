@@ -1,0 +1,196 @@
+import cv2
+import numpy as np
+from PIL import Image
+
+def findCenter(values):
+    leftmost = 0
+    rightmost = 0
+    topmost = 0
+    bottommost = 0
+    temp = 0
+    for i in range(np.size(values, 1)):
+        col = values[:, i]
+        if np.sum(col) != 0.0:
+            rightmost = i
+            if temp == 0:
+                leftmost = i
+                temp = 1
+    for j in range(np.size(values, 0)):
+        row = values[j, :]
+        if np.sum(row) != 0.0:
+            bottommost = j
+            if temp == 1:
+                topmost = j
+                temp = 2
+    return [topmost, bottommost, leftmost, rightmost]
+def detectPointer(original_frame):
+    frame = original_frame.copy()
+    # Firstly, Filter with red and Eliminate the area smaller 10
+    LASER_MIN = np.array([0, 0, 250], np.uint8)
+    LASER_MAX = np.array([255, 255, 255], np.uint8)
+
+    hsv_img = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    frame_threshed = cv2.inRange(hsv_img, LASER_MIN, LASER_MAX)
+    # cv2.imshow("Frame Thresh 1", frame_threshed)
+
+    # Eliminate the regions which have the erea smaller 10
+    contours, _ = cv2.findContours(frame_threshed, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+        approx = cv2.approxPolyDP(cnt, 0.02 * cv2.arcLength(cnt, True), True)
+        x = approx.ravel()[0]
+        y = approx.ravel()[1]
+        if area < 10:
+            for i in cnt:
+                cv2.circle(frame, (x, y), 2, (0, 0, 0), 2, cv2.LINE_AA)
+
+    hsv_img = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    frame_threshed = cv2.inRange(hsv_img, LASER_MIN, LASER_MAX)
+    # cv2.imshow("Frame Thresh 2", frame_threshed)
+
+    [top, bottom, left, right] = findCenter(frame_threshed)
+    print(top, bottom, left, right)
+    image1 = frame.copy()
+    cv2.rectangle(image1, (left, top), (right, bottom), (0, 255, 255), 2)
+    # cv2.imshow("Anh loc mau", image1)
+
+    # Secondly, Detection Edged of region which has red
+
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (3, 3), 0)
+    thresh = cv2.threshold(blurred, 240, 255, cv2.THRESH_BINARY_INV)[1]
+    canny = cv2.Canny(thresh, 50, 255, 1)
+    # cv2.imshow("Canny", canny)
+
+    # dilate = cv2.dilate(canny, None, iterations=1)
+    # cv2.imshow("Dilate", dilate)
+    # erode = cv2.erode(dilate, None, iterations=1)
+    # cv2.imshow("Erode ", erode)
+    # circles = cv2.HoughCircles(dilate, cv2.HOUGH_GRADIENT, 1.2, 2)
+    # contours, _ = cv2.findContours(dilate, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    # print("Tinh dien tich")
+    # font = cv2.FONT_HERSHEY_COMPLEX
+    # i = 0
+    # for cnt in contours:
+    #     area = cv2.contourArea(cnt)
+    #     print(area)
+    #     approx = cv2.approxPolyDP(cnt, 0.02 * cv2.arcLength(cnt, True), True)
+    #     x = approx.ravel()[0]
+    #     y = approx.ravel()[1]
+    #     i = i + 1
+    #     if area > 10:
+    #         cv2.drawContours(frame, [approx], 0, (0, 0, 0), 5)
+    #         cv2.putText(frame, str(i), (x, y), font, 1, (0, 0, 0))
+    #
+    #         # if len(approx) == 3:
+    #         #     cv2.putText(frame, "Triangle", (x, y), font, 1, (0, 0, 0))
+    #         #     cv2.drawContours(frame, [approx], 0, (0, 0, 0), 5)
+    #         # elif len(approx) == 4:
+    #         #     cv2.putText(frame, "Rectangle", (x, y), font, 1, (0, 0, 0))
+    #         #     cv2.drawContours(frame, [approx], 0, (0, 0, 0), 5)
+    #         # elif 10 <= len(approx) <= 20:
+    #         #     cv2.putText(frame, "Circle", (x, y), font, 1, (0, 0, 0))
+    #         #     cv2.drawContours(frame, [approx], 0, (0, 0, 0), 5)
+    #
+    #
+    # cv2.imshow("Ket qua", frame)
+
+    sectionFrame = canny[top:bottom, left:right] # Select the region which has red
+    [topmost, bottommost, leftmost, rightmost] = findCenter(sectionFrame)
+    print(topmost, bottommost, leftmost, rightmost)
+    laserx = left + round((rightmost + leftmost) / 2)
+    lasery = top + round((bottommost + topmost) / 2)
+    print(laserx, lasery)
+    return laserx, lasery
+
+# def detectEdge(frame):
+#     # load the image, convert it to grayscale, and blur it slightly
+#     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+#     cv2.imshow("Gray Image", gray)
+#     gray = cv2.GaussianBlur(gray, (7, 7), 0)
+#     cv2.imshow("Gray Image", gray)
+#     # perform edge detection, then perform a dilation + erosion to
+#     # close gaps in between object edges
+#     edged = cv2.Canny(gray, 50, 100)
+#     edged = cv2.dilate(edged, None, iterations=1)
+#     edged = cv2.erode(edged, None, iterations=1)
+#     cv2.imshow("Image After Canny", edged)
+# take second element for sort
+def takeSecond(elem):
+    return elem[1]
+# take First element for sort
+def takeFirst(elem):
+    return elem[0]
+def findCoordinate(coordinates, x1, y1, x2, y2):
+    ver_edge = []
+    for point in coordinates:
+        x, y = point
+        if (x1 == x2):
+            if ((x1 - 5) <= x <= (x1 + 5)):
+                ver_edge.append(point)
+                ver_edge.sort(key=takeSecond)
+        elif (y1 == y2):
+            if ((y1 - 5) <= y <= (y1 + 5)):
+                ver_edge.append(key=takeFirst())
+        else:
+            if ((x - x1) / (x2 - x1) == (y - y1) / (y2 - y1)):
+                ver_edge.append(point)
+    return ver_edge
+def findCoordinatesCorner(image):
+    img = image.copy()
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray = np.float32(gray)
+
+    corners = cv2.goodFeaturesToTrack(gray, 100, 0.01, 10)
+    corners = np.int0(corners)
+    new_img = Image.new('RGB', (np.size(img, 1), np.size(img, 0)), color='white')
+    new_img.save('images/temp.jpg')
+    new_img = cv2.imread('images/temp.jpg')
+    coodinates_edge = []
+    for corner in corners:
+        x, y = corner.ravel()
+        cv2.circle(new_img, (x, y), 3, 255, -1)
+        cv2.circle(img, (x, y), 3, 255, -1)
+        coodinates_edge.append([x, y])
+
+    cv2.imshow("Corner Image 1", img)
+
+    gray = cv2.cvtColor(new_img, cv2.COLOR_BGR2GRAY)  # color -> gray
+    edges = cv2.Canny(gray, 50, 150, apertureSize=3)
+    dilate = cv2.dilate(edges, None, iterations=3)
+    erode = cv2.erode(dilate, None, iterations=4)
+    # cv2.imshow("Canny", edges)
+    # cv2.imshow("dilate", dilate)
+    # cv2.imshow("erode", erode)
+
+    lines = cv2.HoughLines(erode, rho=1, theta=np.pi / 180, threshold=50)
+    ver = []
+    for line in lines:
+        rho, theta = line[0]
+        a = np.cos(theta)
+        b = np.sin(theta)
+        x0 = rho * np.cos(theta)
+        y0 = rho * np.sin(theta)
+        x1 = int(x0 + 1000 * (-b))
+        y1 = int(y0 + 1000 * a)
+        x2 = int(x0 - 1000 * (-b))
+        y2 = int(y0 - 1000 * a)
+
+        cv2.line(new_img, (x1, y1), (x2, y2), (0, 0, 255), 1)
+        temp = findCoordinate(coodinates_edge, x1, y1, x2, y2)
+        print(temp)
+        ver.append(temp)
+
+    ver2 = ver[0]
+    ver1 = ver[1]
+    print(len(ver1))
+    print(ver1)
+    print(len(ver2))
+    print(ver2)
+    for i in range(len(ver1) - 1):
+        x1, y1 = ver1[i]
+        x2, y2 = ver2[i]
+        cv2.line(new_img, (x1, y1), (x2, y2), (0, 0, 255), 1)
+    cv2.imshow("Corner Image 2", new_img)
+
+    return ver
